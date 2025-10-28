@@ -1,0 +1,92 @@
+# -----------------------------------------------------------------
+# Laravel / PHP
+# -----------------------------------------------------------------
+
+# Dependencias de Composer
+/vendor/
+
+# Archivo de entorno. ¡Nunca subas tus contraseñas!
+.env
+.env.backup
+
+# Archivo de entorno de ejemplo (opcional, algunos prefieren subirlo)
+# .env.example
+
+# Archivos de logs
+/storage/logs/*.log
+/storage/logs/laravel.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos de caché y sesión de Laravel
+/storage/framework/cache/
+/storage/framework/cache/data/
+/storage/framework/sessions/
+/storage/framework/views/
+/storage/framework/testing/
+/bootstrap/cache/
+
+# Archivos generados por Laravel
+/storage/app/public/
+/public/storage
+/public/hot
+/public/build/
+
+# Archivos de bases de datos
+/storage/*.sqlite
+/storage/database.sqlite
+homestead.yaml
+homestead.json
+/.vagrant
+
+# Archivos de testing/cobertura
+.phpunit.result.cache
+coverage.xml
+
+# -----------------------------------------------------------------
+# React / Node.js
+# -----------------------------------------------------------------
+
+# Dependencias de Node
+/node_modules/
+
+# Archivos de build de producción
+/build/
+/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos de entorno local de React
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Reportes de cobertura de tests
+/coverage/
+
+# -----------------------------------------------------------------
+# Archivos de Sistema Operativo y Editores
+# -----------------------------------------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Editores de código
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace

@@ -1,0 +1,158 @@
+// Fonts
+@import url('https://fonts.bunny.net/css?family=Nunito');
+
+// Variables
+@import 'variables';
+
+// Bootstrap
+@import 'bootstrap/scss/bootstrap';
+/* =================================================================
+   ESTILOS PERSONALIZADOS PARA LA BARRA DE NAVEGACIÓN
+   ================================================================= */
+
+.navbar-custom {
+    // Gradiente sutil para un look premium
+    background: linear-gradient(135deg, #07427a, #0b5394);
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    // Una sombra más pronunciada para dar profundidad
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+.navbar-custom .navbar-brand {
+    font-weight: 600; // Semi-bold
+    font-size: 1.5rem;
+}
+
+// Estilos para los enlaces de navegación
+.navbar-custom .nav-link {
+    color: rgba(255, 255, 255, 0.8); // Ligeramente transparente
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    margin: 0 0.25rem;
+    border-radius: 0.5rem; // Bordes redondeados
+    transition: all 0.3s ease-in-out;
+}
+
+// Efecto al pasar el mouse sobre los enlaces
+.navbar-custom .nav-link:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px); // Sutil efecto de elevación
+}
+
+// Estilo para el enlace de la PÁGINA ACTIVA
+.navbar-custom .nav-link.active {
+    color: #ffffff;
+    background-color: #05335e; // Color de fondo para el enlace activo
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+// Menú desplegable del usuario
+.navbar-custom .dropdown-menu {
+    background-color: #1a202c; // Fondo oscuro
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.navbar-custom .dropdown-item {
+    color: rgba(255, 255, 255, 0.8);
+    padding: 0.75rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.navbar-custom .dropdown-item:hover {
+    background-color: #2d3748; // Gris oscuro al pasar el mouse
+    color: #ffffff;
+}
+
+.navbar-custom .dropdown-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+// Estilo especial para el botón de cerrar sesión
+.navbar-custom .dropdown-item-danger:hover {
+    background-color: #c53030; // Rojo al pasar el mouse
+    color: #ffffff;
+}
+
+// Iconos dentro del menú desplegable
+.navbar-custom .dropdown-item .fa-fw {
+    width: 1.5em; // Alinea los iconos perfectamente
+}
+
+// Estilo para la alerta de éxito personalizada
+.alert-custom-success {
+    background-color: #e6f7f2; // Un verde muy claro
+    color: #0d684b; // Un verde oscuro para el texto
+    border: 1px solid #b7e4d7; // Un borde verde claro
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+// Iconos de colores personalizados
+.text-primary-custom {
+    color: #07427a;
+}
+
+/* =================================================================
+   ESTILOS PARA EL DASHBOARD GRID
+   ================================================================= */
+
+// Contenedor principal de la cuadrícula
+.dashboard-grid {
+    display: grid;
+    // Crea columnas que se adaptan automáticamente al tamaño de la pantalla.
+    // Cada tarjeta tendrá un mínimo de 280px.
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem; // Espacio entre las tarjetas
+    margin-bottom: 3rem;
+}
+
+// Estilo de cada tarjeta en la cuadrícula
+.dashboard-card {
+    display: block; // Para que el <a> ocupe todo el espacio
+    background-color: #ffffff;
+    border-radius: 0.75rem; // Bordes redondeados
+    padding: 2rem;
+    text-align: center;
+    text-decoration: none; // Quita el subrayado del enlace
+    color: #343a40; // Color de texto oscuro
+    border: 1px solid #e9ecef; // Un borde muy sutil
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04); // Sombra suave
+    transition: all 0.3s ease-in-out;
+}
+
+// Efecto al pasar el mouse sobre la tarjeta
+.dashboard-card:hover {
+    transform: translateY(-5px); // Eleva la tarjeta
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08); // Sombra más pronunciada
+    color: #07427a; // Cambia el color del texto a tu color principal
+}
+
+// Estilo para los iconos
+.dashboard-card i {
+    color: #07427a;
+    transition: transform 0.3s ease;
+}
+
+.dashboard-card:hover i {
+    transform: scale(1.1); // Agranda el icono al pasar el mouse
+}
+
+/* =================================================================
+   ESTILOS ADICIONALES PARA CRUD
+   ================================================================= */
+
+// Badges de Calificación
+.badge-calificacion-aprobado {
+    background-color: #d1e7dd; // Verde claro
+    color: #0f5132; // Verde oscuro
+}
+
+.badge-calificacion-reprobado {
+    background-color: #f8d7da; // Rojo claro
+    color: #842029; // Rojo oscuro
+}
