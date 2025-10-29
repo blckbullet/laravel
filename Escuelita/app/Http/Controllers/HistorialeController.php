@@ -49,11 +49,18 @@ class HistorialeController extends Controller
 {
     // 1. Obtenemos los datos validados
     $datosValidados = $request->validated();
-    
     $matricula = $datosValidados['alumno_matricula'];
-    $materiaId = $datosValidados['materia_id'];
 
-    // --- INICIO DE LA LÓGICA AUTOMÁTICA ---
+    // --- REGLA 2: NO INSCRIBIR A ALUMNOS DE BAJA ---
+    $alumno = Alumno::find($matricula);
+    if (!$alumno || !$alumno->esta_activo) {
+        return Redirect::back()
+            ->with('error', 'Este alumno está dado de baja y no se le pueden añadir inscripciones.')
+            ->withInput();
+    }
+    // --- FIN REGLA 2 ---
+    
+    $materiaId = $datosValidados['materia_id'];
     $calificacionMinimaAprobatoria = 6.0; 
 
     // 2. Buscamos el último intento del alumno
@@ -63,34 +70,25 @@ class HistorialeController extends Controller
         ->orderBy('created_at', 'desc')
         ->first();
 
-    $nuevoTipo = 'Ordinario'; // Tipo por defecto si no hay historial
+    $nuevoTipo = 'Ordinario';
 
-    // 3. Revisamos si existe un intento previo
     if ($ultimoIntento) {
-        
-        // CASO 1: El último intento NO TIENE CALIFICACIÓN (está en curso)
         if ($ultimoIntento->calificacion === null) {
             return Redirect::back()
                 ->with('error', 'El alumno ya está inscrito en esta materia (calificación pendiente).')
                 ->withInput();
         } 
-        
-        // CASO 2: El último intento TIENE CALIFICACIÓN y REPROBÓ
         elseif ($ultimoIntento->calificacion < $calificacionMinimaAprobatoria) {
-            
             if ($ultimoIntento->tipo == 'Ordinario') {
                 $nuevoTipo = 'Repite';
             } elseif ($ultimoIntento->tipo == 'Repite') {
                 $nuevoTipo = 'Especial';
             } elseif ($ultimoIntento->tipo == 'Especial') {
-                // Ya reprobó 3 veces
                 return Redirect::back()
                     ->with('error', 'El alumno ya ha reprobado esta materia en Especial.')
                     ->withInput();
             }
         } 
-        
-        // CASO 3: El último intento TIENE CALIFICACIÓN y APROBÓ
         else { 
             return Redirect::back()
                 ->with('error', 'El alumno ya tiene esta materia aprobada en su historial.')
@@ -98,22 +96,27 @@ class HistorialeController extends Controller
         }
     }
     
-    // --- FIN DE LA LÓGICA ---
-
     // 4. Asignamos el tipo y la calificación
     $datosValidados['tipo'] = $nuevoTipo;
-    
-    // Aseguramos que si la calificación viene vacía, se guarde como NULL
     $datosValidados['calificacion'] = $datosValidados['calificacion'] ?? null;
+    $calificacionActual = $datosValidados['calificacion'];
 
     // 5. Creamos el nuevo registro
     Historiale::create($datosValidados);
 
-    // 6. Preparamos el mensaje de éxito
+    // --- REGLA 1: DAR DE BAJA SI REPRUEBA ESPECIAL ---
     $mensaje = "Inscripción en '{$nuevoTipo}' creada exitosamente.";
-    if ($datosValidados['calificacion'] === null) {
+    if ($nuevoTipo == 'Especial' && $calificacionActual !== null && $calificacionActual < $calificacionMinimaAprobatoria) {
+        
+        $alumno->esta_activo = false;
+        $alumno->save();
+        
+        $mensaje .= " ¡ATENCIÓN: El alumno ha sido DADO DE BAJA por reprobar Especial!";
+    }
+    elseif ($calificacionActual === null) {
         $mensaje .= " Calificación pendiente.";
     }
+    // --- FIN REGLA 1 ---
 
     return Redirect::route('historiales.index')->with('success', $mensaje);
 }
@@ -133,11 +136,37 @@ class HistorialeController extends Controller
     }
 
     public function update(HistorialeRequest $request, Historiale $historiale): RedirectResponse
+{
+    $datosValidados = $request->validated();
+    
+    // 1. Actualizamos el registro del historial
+    $historiale->update($datosValidados);
+    $historiale->refresh(); // Recargamos el modelo con los datos guardados
+
+    // --- INICIO LÓGICA DE BAJA (REGLA 1) ---
+    
+    $calificacion = $historiale->calificacion;
+    $tipo = $historiale->tipo;
+    $calificacionMinimaAprobatoria = 6.0;
+
+    // 2. Comprobamos si es 'Especial' y está reprobado
+    if ($tipo == 'Especial' && $calificacion !== null && $calificacion < $calificacionMinimaAprobatoria) 
     {
-        $historiale->update($request->validated());
+        // 3. Damos de baja al alumno
+        $alumno = $historiale->alumno; // Obtenemos el alumno de la relación
+        $alumno->esta_activo = false;
+        $alumno->save();
+        
+        // 4. Redirigimos con un mensaje especial
         return Redirect::route('historiales.index')
-            ->with('success', 'Registro de historial actualizado exitosamente.');
+            ->with('success', 'Calificación de Especial actualizada. ¡ALUMNO DADO DE BAJA por reprobar!');
     }
+    
+    // --- FIN LÓGICA DE BAJA ---
+
+    return Redirect::route('historiales.index')
+        ->with('success', 'Registro de historial actualizado exitosamente.');
+}
 
     public function destroy(Historiale $historiale): RedirectResponse // 6. Usando Route-Model Binding
     {
