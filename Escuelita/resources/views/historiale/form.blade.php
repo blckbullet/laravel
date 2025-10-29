@@ -1,4 +1,26 @@
 <div class="row">
+    {{-- Muestra errores de VALIDACIÓN (Aunque ya los quitaste) --}}
+@if ($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>¡Error de Validación!</strong> Por favor, corrige los siguientes problemas:<br><br>
+        <ul>
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+{{-- Muestra errores de LÓGICA (Este es el que necesitas) --}}
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>¡Error de Lógica!</strong>
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
     {{-- Columna Izquierda --}}
     <div class="col-md-6">
         <div class="form-floating mb-3">
@@ -26,10 +48,20 @@
         </div>
 
         <div class="form-floating mb-3">
-            <input type="number" step="0.01" name="calificacion" class="form-control @error('calificacion') is-invalid @enderror" value="{{ old('calificacion', $historiale?->calificacion) }}" id="calificacion" placeholder="Ej: 8.50">
-            <label for="calificacion"><i class="fas fa-star-half-alt me-2"></i>Calificación</label>
-            @error('calificacion')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
+    <input type_
+="number" step="0.01" name="calificacion" 
+           class="form-control @error('calificacion') is-invalid @enderror" 
+           {{-- Usamos ?? '' para que un NULL no se muestre como 0 --}}
+           value="{{ old('calificacion', $historiale?->calificacion) ?? '' }}" 
+           id="calificacion" placeholder="Ej: 8.50 (o dejar vacío)">
+    
+    {{-- Cambiamos la etiqueta para que sea más clara --}}
+    <label for="calificacion">
+        <i class="fas fa-star-half-alt me-2"></i>Calificación (Opcional: dejar vacío si está en curso)
+    </label>
+    
+    @error('calificacion')<div class="invalid-feedback">{{ $message }}</div>@enderror
+</div>
     </div>
 
     {{-- Columna Derecha --}}
@@ -46,15 +78,7 @@
             @error('año')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
-        <div class="form-floating mb-3">
-            <select name="tipo" class="form-select @error('tipo') is-invalid @enderror" id="tipo">
-                <option value="Ordinario" {{ old('tipo', $historiale?->tipo) == 'Ordinario' ? 'selected' : '' }}>Ordinario</option>
-                <option value="Extraordinario" {{ old('tipo', $historiale?->tipo) == 'Extraordinario' ? 'selected' : '' }}>Extraordinario</option>
-                <option value="Título de Suficiencia" {{ old('tipo', $historiale?->tipo) == 'Título de Suficiencia' ? 'selected' : '' }}>Título de Suficiencia</option>
-            </select>
-            <label for="tipo"><i class="fas fa-tag me-2"></i>Tipo de Calificación</label>
-            @error('tipo')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
+        
     </div>
 </div>
 

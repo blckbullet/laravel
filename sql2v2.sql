@@ -124,7 +124,7 @@ CREATE TABLE historiales (
     tipo VARCHAR(50),
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
-    UNIQUE (alumno_matricula, materia_id),
+    
     CONSTRAINT fk_historiales_alumnos FOREIGN KEY (alumno_matricula) REFERENCES alumnos(matricula),
     CONSTRAINT fk_historiales_materias FOREIGN KEY (materia_id) REFERENCES materias(id)
 );

@@ -46,11 +46,77 @@ class HistorialeController extends Controller
     }
 
     public function store(HistorialeRequest $request): RedirectResponse
-    {
-        Historiale::create($request->validated());
-        return Redirect::route('historiales.index')
-            ->with('success', 'Registro de historial creado exitosamente.');
+{
+    // 1. Obtenemos los datos validados
+    $datosValidados = $request->validated();
+    
+    $matricula = $datosValidados['alumno_matricula'];
+    $materiaId = $datosValidados['materia_id'];
+
+    // --- INICIO DE LA LÓGICA AUTOMÁTICA ---
+    $calificacionMinimaAprobatoria = 6.0; 
+
+    // 2. Buscamos el último intento del alumno
+    $ultimoIntento = Historiale::where('alumno_matricula', $matricula)
+        ->where('materia_id', $materiaId)
+        ->whereIn('tipo', ['Ordinario', 'Repite', 'Especial']) 
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    $nuevoTipo = 'Ordinario'; // Tipo por defecto si no hay historial
+
+    // 3. Revisamos si existe un intento previo
+    if ($ultimoIntento) {
+        
+        // CASO 1: El último intento NO TIENE CALIFICACIÓN (está en curso)
+        if ($ultimoIntento->calificacion === null) {
+            return Redirect::back()
+                ->with('error', 'El alumno ya está inscrito en esta materia (calificación pendiente).')
+                ->withInput();
+        } 
+        
+        // CASO 2: El último intento TIENE CALIFICACIÓN y REPROBÓ
+        elseif ($ultimoIntento->calificacion < $calificacionMinimaAprobatoria) {
+            
+            if ($ultimoIntento->tipo == 'Ordinario') {
+                $nuevoTipo = 'Repite';
+            } elseif ($ultimoIntento->tipo == 'Repite') {
+                $nuevoTipo = 'Especial';
+            } elseif ($ultimoIntento->tipo == 'Especial') {
+                // Ya reprobó 3 veces
+                return Redirect::back()
+                    ->with('error', 'El alumno ya ha reprobado esta materia en Especial.')
+                    ->withInput();
+            }
+        } 
+        
+        // CASO 3: El último intento TIENE CALIFICACIÓN y APROBÓ
+        else { 
+            return Redirect::back()
+                ->with('error', 'El alumno ya tiene esta materia aprobada en su historial.')
+                ->withInput();
+        }
     }
+    
+    // --- FIN DE LA LÓGICA ---
+
+    // 4. Asignamos el tipo y la calificación
+    $datosValidados['tipo'] = $nuevoTipo;
+    
+    // Aseguramos que si la calificación viene vacía, se guarde como NULL
+    $datosValidados['calificacion'] = $datosValidados['calificacion'] ?? null;
+
+    // 5. Creamos el nuevo registro
+    Historiale::create($datosValidados);
+
+    // 6. Preparamos el mensaje de éxito
+    $mensaje = "Inscripción en '{$nuevoTipo}' creada exitosamente.";
+    if ($datosValidados['calificacion'] === null) {
+        $mensaje .= " Calificación pendiente.";
+    }
+
+    return Redirect::route('historiales.index')->with('success', $mensaje);
+}
 
     public function show(Historiale $historiale): View // 6. Usando Route-Model Binding
     {
