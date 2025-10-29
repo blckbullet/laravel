@@ -17,6 +17,26 @@
                 </a>
             </div>
 
+            {{-- Barra de Búsqueda --}}
+            <div class="card shadow border-0 mb-4">
+                <div class="card-body">
+                    <form action="{{ route('alumnos.index') }}" method="GET" class="row g-3 align-items-center">
+                        <div class="col-md">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" name="search" class="form-control" placeholder="Buscar por Matrícula o Nombre..." value="{{ request('search') }}">
+                            </div>
+                        </div>
+                        <div class="col-md-auto">
+                            <button type="submit" class="btn btn-info">Buscar</button>
+                            @if(request('search'))
+                                <a href="{{ route('alumnos.index') }}" class="btn btn-secondary">Limpiar</a>
+                            @endif
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="card shadow border-0">
                 <div class="card-body">
 

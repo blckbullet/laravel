@@ -15,12 +15,20 @@ class AlumnoController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
-        
+        $search = $request->input('search');
+
         $alumnos = Alumno::with('carrera')
-                         ->where('es_egresado', false)
-                         ->paginate(10);
+            ->where('es_egresado', false)
+            ->when($search, function ($query, $search) {
+                return $query->where(function ($q) use ($search) {
+                    $q->where('matricula', 'like', "%{$search}%")
+                      ->orWhereRaw("CONCAT(nombre, ' ', segundo_nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"])
+                      ->orWhereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                });
+            })
+            ->paginate(10);
 
         return view('alumno.index', compact('alumnos'))
             ->with('i', (request()->input('page', 1) - 1) * $alumnos->perPage());

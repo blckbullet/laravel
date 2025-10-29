@@ -17,8 +17,13 @@ class MateriaController extends Controller
      */
     public function index(Request $request): View
     {
-        // 2. Cargar relaciones 'carrera' y 'prerequisito' eficientemente
-        $materias = Materia::with('carrera', 'prerequisito')->paginate();
+        $search = $request->input('search');
+
+        $materias = Materia::with('carrera', 'prerequisito')
+            ->when($search, function ($query, $search) {
+                return $query->where('nombre', 'like', "%{$search}%");
+            })
+            ->paginate();
 
         return view('materia.index', compact('materias'))
             ->with('i', ($request->input('page', 1) - 1) * $materias->perPage());
@@ -89,5 +94,13 @@ class MateriaController extends Controller
 
         return Redirect::route('materias.index')
             ->with('success', 'Materia eliminada exitosamente.'); // Mensaje en español
+    }
+
+    /**
+     * Devuelve las materias de una carrera específica en formato JSON.
+     */
+    public function getPorCarrera(Carrera $carrera)
+    {
+        return response()->json($carrera->materias()->get());
     }
 }

@@ -17,8 +17,16 @@ class ProfesoreController extends Controller
      */
     public function index(Request $request): View
     {
-        // 2. Usar with('area') para cargar el nombre del área eficientemente
-        $profesores = Profesore::with('area')->paginate();
+        $search = $request->input('search');
+
+        $profesores = Profesore::with('area')
+            ->when($search, function ($query, $search) {
+                return $query->where(function ($q) use ($search) {
+                    $q->where('correo', 'like', "%{$search}%")
+                      ->orWhereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                });
+            })
+            ->paginate();
 
         return view('profesore.index', compact('profesores'))
             ->with('i', ($request->input('page', 1) - 1) * $profesores->perPage());

@@ -19,8 +19,19 @@ class GrupoController extends Controller
      */
     public function index(Request $request): View
     {
-        // 3. Cargar relaciones 'materia' y 'profesor' eficientemente
-        $grupos = Grupo::with('materia', 'profesor')->paginate();
+        $search = $request->input('search');
+
+        $grupos = Grupo::with('materia', 'profesor')
+            ->when($search, function ($query, $search) {
+                return $query->where('nombre', 'like', "%{$search}%")
+                             ->orWhereHas('materia', function ($q) use ($search) {
+                                 $q->where('nombre', 'like', "%{$search}%");
+                             })
+                             ->orWhereHas('profesor', function ($q) use ($search) {
+                                 $q->whereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                             });
+            })
+            ->paginate();
 
         return view('grupo.index', compact('grupos'))
             ->with('i', ($request->input('page', 1) - 1) * $grupos->perPage());

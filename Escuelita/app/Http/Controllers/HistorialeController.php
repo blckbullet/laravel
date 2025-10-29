@@ -16,8 +16,19 @@ class HistorialeController extends Controller
 {
     public function index(Request $request): View
     {
-        // 4. Cargar relaciones 'alumno' y 'materia' eficientemente
-        $historiales = Historiale::with('alumno', 'materia')->paginate();
+        $search = $request->input('search');
+
+        $historiales = Historiale::with('alumno', 'materia')
+            ->when($search, function ($query, $search) {
+                return $query->whereHas('alumno', function ($q) use ($search) {
+                                 $q->where('matricula', 'like', "%{$search}%")
+                                   ->orWhereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                             })
+                             ->orWhereHas('materia', function ($q) use ($search) {
+                                 $q->where('nombre', 'like', "%{$search}%");
+                             });
+            })
+            ->paginate();
 
         return view('historiale.index', compact('historiales'))
             ->with('i', ($request->input('page', 1) - 1) * $historiales->perPage());
@@ -52,7 +63,6 @@ class HistorialeController extends Controller
         $alumnos = Alumno::select('matricula', DB::raw("CONCAT(nombre, ' ', apellido_paterno) AS nombre_completo"))
                          ->pluck('nombre_completo', 'matricula');
         $materias = Materia::pluck('nombre', 'id');
-        
         return view('historiale.edit', compact('historiale', 'alumnos', 'materias'));
     }
 

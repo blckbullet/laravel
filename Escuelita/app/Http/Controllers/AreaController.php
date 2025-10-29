@@ -16,7 +16,13 @@ class AreaController extends Controller
      */
     public function index(Request $request): View
     {
-        $areas = Area::paginate();
+        $search = $request->input('search');
+
+        $areas = Area::when($search, function ($query, $search) {
+                return $query->where('nombre', 'like', "%{$search}%")
+                             ->orWhere('jefe_area', 'like', "%{$search}%");
+            })
+            ->paginate();
 
         return view('area.index', compact('areas'))
             ->with('i', ($request->input('page', 1) - 1) * $areas->perPage());

@@ -19,8 +19,12 @@ class CarreraController extends Controller
      */
     public function index(Request $request): View
     {
-        $carreras = Carrera::paginate();
-        
+        $search = $request->input('search');
+
+        $carreras = Carrera::when($search, function ($query, $search) {
+                return $query->where('nombre', 'like', "%{$search}%");
+            })
+            ->paginate();
 
         return view('carrera.index', compact('carreras'))
             ->with('i', ($request->input('page', 1) - 1) * $carreras->perPage());

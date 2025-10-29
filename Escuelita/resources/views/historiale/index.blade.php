@@ -17,6 +17,26 @@
                 </a>
             </div>
 
+            {{-- Barra de Búsqueda --}}
+            <div class="card shadow border-0 mb-4">
+                <div class="card-body">
+                    <form action="{{ route('historiales.index') }}" method="GET" class="row g-3 align-items-center">
+                        <div class="col-md">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" name="search" class="form-control" placeholder="Buscar por Matrícula, Alumno o Materia..." value="{{ request('search') }}">
+                            </div>
+                        </div>
+                        <div class="col-md-auto">
+                            <button type="submit" class="btn btn-info">Buscar</button>
+                            @if(request('search'))
+                                <a href="{{ route('historiales.index') }}" class="btn btn-secondary">Limpiar</a>
+                            @endif
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             @if ($message = Session::get('success'))
                 <div class="alert alert-custom-success alert-dismissible fade show" role="alert">
                     <p class="mb-0">{{ $message }}</p>
@@ -31,6 +51,7 @@
                             <thead class="table-white">
                                 <tr>
                                     <th>#</th>
+                                    <th>Matrícula</th>
                                     <th>Alumno</th>
                                     <th>Materia</th>
                                     <th>Calificación</th>
@@ -43,6 +64,7 @@
                                 @forelse ($historiales as $historiale)
                                     <tr>
                                         <td>{{ ++$i }}</td>
+                                        <td><span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">{{ $historiale->alumno->matricula ?? 'N/A' }}</span></td>
                                         <td>{{ $historiale->alumno->nombre ?? 'N/A' }} {{ $historiale->alumno->apellido_paterno ?? '' }}</td>
                                         <td>{{ $historiale->materia->nombre ?? 'N/A' }}</td>
                                         <td>
