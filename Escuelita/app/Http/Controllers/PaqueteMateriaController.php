@@ -15,8 +15,18 @@ class PaqueteMateriaController extends Controller
 {
     public function index(Request $request): View
     {
-        // 3. Cargar relaciones para mostrar nombres
-        $paqueteMaterias = PaqueteMateria::with('paquete', 'materia')->paginate();
+        $search = $request->input('search');
+
+        $paqueteMaterias = PaqueteMateria::with('paquete', 'materia')
+            ->when($search, function ($query, $search) {
+                return $query->whereHas('paquete', function ($q) use ($search) {
+                                 $q->where('nombre', 'like', "%{$search}%");
+                             })
+                             ->orWhereHas('materia', function ($q) use ($search) {
+                                 $q->where('nombre', 'like', "%{$search}%");
+                             });
+            })
+            ->paginate();
 
         return view('paquete-materia.index', compact('paqueteMaterias'))
             ->with('i', ($request->input('page', 1) - 1) * $paqueteMaterias->perPage());

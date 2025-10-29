@@ -19,8 +19,18 @@ class MateriaProfesoreController extends Controller
      */
     public function index(Request $request): View
     {
-        // 3. Cargar relaciones para mostrar los nombres en la tabla
-        $materiaProfesores = MateriaProfesore::with('materia', 'profesore')->paginate();
+        $search = $request->input('search');
+
+        $materiaProfesores = MateriaProfesore::with('materia', 'profesore')
+            ->when($search, function ($query, $search) {
+                return $query->whereHas('profesore', function ($q) use ($search) {
+                                 $q->whereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                             })
+                             ->orWhereHas('materia', function ($q) use ($search) {
+                                 $q->where('nombre', 'like', "%{$search}%");
+                             });
+            })
+            ->paginate();
 
         return view('materia-profesore.index', compact('materiaProfesores'))
             ->with('i', ($request->input('page', 1) - 1) * $materiaProfesores->perPage());
