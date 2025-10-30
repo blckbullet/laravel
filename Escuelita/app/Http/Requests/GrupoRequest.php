@@ -11,7 +11,7 @@ class GrupoRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return true; // Asumimos que todos pueden
     }
 
     /**
@@ -22,9 +22,16 @@ class GrupoRequest extends FormRequest
     public function rules(): array
     {
         return [
-			'nombre' => 'required|string',
-			'materia_id' => 'required',
-			'profesor_id' => 'required',
+            // Reglas para el grupo
+            'nombre' => 'required|string|max:10',
+            'materia_id' => 'required|integer|exists:materias,id',
+            'profesor_id' => 'required|integer|exists:profesores,id',
+
+            // --- REGLAS NUEVAS PARA LOS HORARIOS ---
+            'horarios' => 'nullable|array', // 'horarios' es un array, pero puede estar vacío
+            'horarios.*.dia_semana' => 'required_with:horarios|string|in:lunes,martes,miercoles,jueves,viernes,sabado,domingo',
+            'horarios.*.hora_inicio' => 'required_with:horarios|date_format:H:i',
+            'horarios.*.hora_fin' => 'required_with:horarios|date_format:H:i|after:horarios.*.hora_inicio',
         ];
     }
 }

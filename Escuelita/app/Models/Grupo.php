@@ -45,6 +45,16 @@ class Grupo extends Model
     {
         return $this->belongsTo(\App\Models\Profesore::class, 'profesor_id', 'id');
     }
+    public function horarios()
+    {
+        return $this->hasMany(Horario::class);
+    }
+
+    // RELACIÓN NUEVA: Un grupo puede estar en muchos historiales
+    public function historiales()
+    {
+        return $this->hasMany(Historiale::class);
+    }
     
     
 }

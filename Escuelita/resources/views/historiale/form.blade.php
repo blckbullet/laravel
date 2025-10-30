@@ -37,15 +37,20 @@
         </div>
 
         <div class="form-floating mb-3">
-            <select name="materia_id" class="form-select @error('materia_id') is-invalid @enderror" id="materia_id">
-                <option value="">-- Seleccione una Materia --</option>
-                @foreach($materias as $id => $nombre)
-                    <option value="{{ $id }}" {{ old('materia_id', $historiale?->materia_id) == $id ? 'selected' : '' }}>{{ $nombre }}</option>
-                @endforeach
-            </select>
-            <label for="materia_id"><i class="fas fa-book me-2"></i>Materia</label>
-            @error('materia_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
-        </div>
+    {{-- El 'name' ahora es 'grupo_id' --}}
+    <select name="grupo_id" class="form-select @error('grupo_id') is-invalid @enderror" id="grupo_id">
+        <option value="">-- Seleccione un Grupo --</option>
+        
+        {{-- Iteramos sobre la nueva variable $grupos --}}
+        @foreach($grupos as $id => $nombre)
+            <option value="{{ $id }}" {{ old('grupo_id', $historiale?->grupo_id) == $id ? 'selected' : '' }}>
+                {{ $nombre }}
+            </option>
+        @endforeach
+    </select>
+    <label for="grupo_id"><i class="fas fa-book me-2"></i>Grupo (Materia y Grupo)</label>
+    @error('grupo_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+</div>
 
         <div class="form-floating mb-3">
     <input type_

@@ -23,11 +23,11 @@ class HistorialeRequest extends FormRequest
 {
     return [
         'alumno_matricula' => 'required|string|exists:alumnos,matricula',
-        'materia_id' => 'required|integer|exists:materias,id',
         
+        // REEMPLAZAMOS 'materia_id'
+        'grupo_id' => 'required|integer|exists:grupos,id',
         
         'calificacion' => 'nullable|numeric|min:0|max:10',
-        
         'semestre' => 'required|integer',
         'año' => 'required|integer',
     ];

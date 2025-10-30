@@ -129,6 +129,25 @@ CREATE TABLE historiales (
     CONSTRAINT fk_historiales_materias FOREIGN KEY (materia_id) REFERENCES materias(id)
 );
 
+
+ALTER TABLE historiales MODIFY calificacion DECIMAL(5, 2) NULL;
+ALTER TABLE alumnos ADD COLUMN esta_activo BOOLEAN NOT NULL DEFAULT TRUE AFTER es_egresado;
+CREATE TABLE horarios (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    grupo_id BIGINT UNSIGNED NOT NULL,
+    dia_semana ENUM('Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado') NOT NULL,
+    hora_inicio TIME NOT NULL,
+    hora_fin TIME NOT NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    
+    CONSTRAINT fk_horarios_grupos FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
+);
+
+ALTER TABLE historiales
+ADD COLUMN grupo_id BIGINT UNSIGNED NULL AFTER materia_id,
+ADD CONSTRAINT fk_historiales_grupos FOREIGN KEY (grupo_id) 
+    REFERENCES grupos(id);
 -- ===================================================
 -- INSERCIÓN DE DATOS DE PRUEBA
 -- ===================================================

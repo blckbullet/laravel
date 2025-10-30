@@ -47,5 +47,9 @@ class Historiale extends Model
     {
         return $this->belongsTo(\App\Models\Materia::class, 'materia_id', 'id');
     }
+    public function grupo()
+    {
+        return $this->belongsTo(Grupo::class);
+    }
     
 }
