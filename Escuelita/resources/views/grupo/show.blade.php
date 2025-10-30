@@ -1,3 +1,8 @@
+@php
+    // Necesitamos Carbon para formatear las horas
+    use Carbon\Carbon;
+@endphp
+
 @extends('layouts.app')
 
 @section('template_title')
@@ -14,67 +19,60 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h2 class="mb-0">Detalles del Grupo</h2>
                         <a class="btn btn-light btn-sm" href="{{ route('grupos.index') }}">
-                            <i class="fas fa-arrow-left me-1"></i> Volver al listado
+                             <i class="fas fa-arrow-left me-1"></i> Volver al listado
                         </a>
                     </div>
                 </div>
 
                 <div class="card-body">
-                    <h3 class="font-weight-bold">Grupo: {{ $grupo->nombre }}</h3>
+                    
+                    <h3 class="font-weight-bold">
+                        Grupo: {{ $grupo->nombre }}
+                    </h3>
                     
                     <hr>
 
-                    {{-- DETALLES PRINCIPALES --}}
                     <dl class="row mt-4">
                         <dt class="col-sm-4">Materia:</dt>
                         <dd class="col-sm-8">{{ $grupo->materia->nombre ?? 'N/A' }}</dd>
-
-                        <dt class="col-sm-4">Profesor Asignado:</dt>
+                        
+                        <dt class="col-sm-4">Profesor:</dt>
                         <dd class="col-sm-8">
-                            {{-- Mostramos el nombre completo del profesor --}}
-                            {{ $grupo->profesor->nombre ?? 'N/A' }} 
-                            {{ $grupo->profesor->apellido_paterno ?? '' }} 
-                            {{ $grupo->profesor->apellido_materno ?? '' }}
+                            @if($grupo->profesor)
+                                {{ $grupo->profesor->nombre }} {{ $grupo->profesor->apellido_paterno }} {{ $grupo->profesor->apellido_materno ?? '' }}
+                            @else
+                                <span class="text-muted">N/A</span>
+                            @endif
                         </dd>
-                    </dl>
 
-                    {{-- ======================================================= --}}
-                    {{--             SECCIÓN DE HORARIOS (NUEVO)                 --}}
-                    {{-- ======================================================= --}}
-                    <hr class="my-4">
-                    <h4>Horarios Asignados</h4>
+                        {{-- ================== SECCIÓN DE HORARIOS ================== --}}
+                        <dt class="col-sm-12 mt-3 mb-2 h5 border-top pt-3">Horarios Asignados</dt>
 
-                    {{-- Verificamos si la relación 'horarios' está cargada y no está vacía --}}
-                    @if($grupo->horarios && $grupo->horarios->count() > 0)
-                        <table class="table table-striped table-hover table-bordered mt-3">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Día</th>
-                                    <th>Hora de Inicio</th>
-                                    <th>Hora de Fin</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($grupo->horarios as $horario)
-                                    <tr>
-                                        {{-- ucfirst() pone la primera letra en mayúscula (ej. Lunes) --}}
-                                        <td>{{ ucfirst($horario->dia_semana) }}</td>
-                                        {{-- Formateamos la hora a formato AM/PM --}}
-                                        <td>{{ date('h:i A', strtotime($horario->hora_inicio)) }}</td>
-                                        <td>{{ date('h:i A', strtotime($horario->hora_fin)) }}</td>
-                                    </tr>
+                        @if($grupo->horarios->isNotEmpty())
+                            <dd class="col-sm-12">
+                                <ul class="list-group">
+                                @foreach ($grupo->horarios as $horario)
+                                    <li class="list-group-item d-flex justify-content-between align-items-center" style="text-transform: capitalize;">
+                                        <span>
+                                            <i class="fas fa-calendar-day me-2 text-primary"></i>
+                                            {{ $horario->dia_semana }}
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-clock me-2 text-primary"></i>
+                                            {{ Carbon::parse($horario->hora_inicio)->format('h:i A') }} - 
+                                            {{ Carbon::parse($horario->hora_fin)->format('h:i A') }}
+                                        </span>
+                                    </li>
                                 @endforeach
-                            </tbody>
-                        </table>
-                    @else
-                        <div class="alert alert-secondary">
-                            Este grupo no tiene horarios asignados.
-                        </div>
-                    @endif
-                    {{-- ======================================================= --}}
-                    {{--         FIN DE LA SECCIÓN DE HORARIOS (NUEVO)           --}}
-                    {{-- ======================================================= --}}
-
+                                </ul>
+                            </dd>
+                        @else
+                            <dd class="col-sm-12">
+                                <p class="text-muted">Este grupo aún no tiene horarios asignados.</p>
+                            </dd>
+                        @endif
+                        {{-- ======================================================== --}}
+                    </dl>
                 </div>
 
                 <div class="card-footer text-end">
@@ -87,3 +85,4 @@
     </div>
 </div>
 @endsection
+

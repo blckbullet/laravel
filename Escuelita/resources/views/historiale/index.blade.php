@@ -1,3 +1,8 @@
+@php
+    // Necesitamos Carbon para formatear las horas
+    use Carbon\Carbon;
+@endphp
+
 @extends('layouts.app')
 
 @section('template_title')
@@ -43,6 +48,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
+            @if ($message = Session::get('error')) {{-- Añadido para mostrar errores de lógica --}}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <p class="mb-0">{{ $message }}</p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
 
             <div class="card shadow-lg border-0">
                 <div class="card-body">
@@ -54,6 +65,13 @@
                                     <th>Matrícula</th>
                                     <th>Alumno</th>
                                     <th>Materia</th>
+                                    
+                                    {{-- ================== NUEVAS COLUMNAS ================== --}}
+                                    <th>Grupo</th>
+                                    <th>Profesor</th>
+                                    <th>Horario</th>
+                                    {{-- =================================================== --}}
+
                                     <th>Calificación</th>
                                     <th>Periodo</th>
                                     <th>Tipo</th>
@@ -67,10 +85,45 @@
                                         <td><span class="badge bg-primary-subtle text-primary-emphasis rounded-pill">{{ $historiale->alumno->matricula ?? 'N/A' }}</span></td>
                                         <td>{{ $historiale->alumno->nombre ?? 'N/A' }} {{ $historiale->alumno->apellido_paterno ?? '' }}</td>
                                         <td>{{ $historiale->materia->nombre ?? 'N/A' }}</td>
+
+                                        {{-- ================== NUEVAS CELDAS ================== --}}
                                         <td>
-                                            <span class="badge badge-calificacion-{{ $historiale->calificacion >= 7 ? 'aprobado' : 'reprobado' }}">
-                                                {{ number_format($historiale->calificacion, 2) }}
+                                            <span class="badge bg-secondary">
+                                                {{ $historiale->grupo->nombre ?? 'N/A' }}
                                             </span>
+                                        </td>
+                                        <td>
+                                            @if($historiale->grupo && $historiale->grupo->profesor)
+                                                {{ $historiale->grupo->profesor->nombre }} {{ $historiale->grupo->profesor->apellido_paterno }}
+                                            @else
+                                                <span class="text-muted">N/A</span>
+                                            @endif
+                                        </td>
+                                        <td style="min-width: 190px; font-size: 0.9em;">
+                                            @if($historiale->grupo && $historiale->grupo->horarios->isNotEmpty())
+                                                @foreach ($historiale->grupo->horarios as $horario)
+                                                    <span class="d-block" style="text-transform: capitalize;">
+                                                        <i class="fas fa-calendar-day me-1 text-muted"></i>
+                                                        {{ $horario->dia_semana }}: 
+                                                        <i class="fas fa-clock me-1 text-muted"></i>
+                                                        {{ Carbon::parse($horario->hora_inicio)->format('H:i') }} - 
+                                                        {{ Carbon::parse($horario->hora_fin)->format('H:i') }}
+                                                    </span>
+                                                @endforeach
+                                            @else
+                                                <span class="text-muted">Sin horario</span>
+                                            @endif
+                                        </td>
+                                        {{-- ================================================= --}}
+
+                                        <td>
+                                            @if ($historiale->calificacion === null)
+                                                <span class="badge bg-warning text-dark">En Curso</span>
+                                            @else
+                                                <span class="badge badge-calificacion-{{ $historiale->calificacion >= 6.0 ? 'aprobado' : 'reprobado' }}">
+                                                    {{ number_format($historiale->calificacion, 2) }}
+                                                </span>
+                                            @endif
                                         </td>
                                         <td>{{ $historiale->semestre }}° / {{ $historiale->año }}</td>
                                         <td>{{ $historiale->tipo }}</td>
@@ -93,7 +146,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center py-5">
+                                        <td colspan="11" class="text-center py-5"> {{-- Colspan aumentado a 11 --}}
                                             <i class="fas fa-exclamation-circle fa-4x text-muted mb-3"></i>
                                             <h4 class="text-muted">No hay registros en el historial todavía.</h4>
                                         </td>
@@ -124,3 +177,4 @@
     })
 </script>
 @endpush
+

@@ -10,7 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Http\Requests\GrupoRequest; // <-- 2. AHORA USAMOS ESTO
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Redirect; // <-- 3. AÑADIR IMPORTACIÓN
 use Illuminate\View\View;
 
 class GrupoController extends Controller
@@ -22,7 +22,10 @@ class GrupoController extends Controller
     {
         $search = $request->input('search');
 
-        $grupos = Grupo::with('materia', 'profesor')
+        // ==========================================================
+        // CAMBIO: Añadir 'horarios' al with()
+        // ==========================================================
+        $grupos = Grupo::with('materia', 'profesor', 'horarios') 
             ->when($search, function ($query, $search) {
                 return $query->where('nombre', 'like', "%{$search}%")
                     ->orWhereHas('materia', function ($q) use ($search) {
@@ -55,21 +58,38 @@ class GrupoController extends Controller
     }
 
     /**
-     * Guarda el nuevo grupo Y SUS HORARIOS.
+     * Guarda el nuevo grupo Y SUS HORARIOS (CON VALIDACIÓN DE PROFESOR).
      */
     public function store(GrupoRequest $request): RedirectResponse
     {
-        // 3. Obtenemos los datos validados del GrupoRequest
+        // 1. Obtenemos los datos validados
         $datosValidados = $request->validated();
+        
+        $profesor_id = $datosValidados['profesor_id'];
+        $horarios_nuevos = $datosValidados['horarios'] ?? []; // Obtenemos el array de horarios
 
-        // 4. Creamos el Grupo primero
+        // ==========================================================
+        // 2. NUEVA VALIDACIÓN DE EMPALME PARA PROFESOR
+        // ==========================================================
+        if ($profesor_id && !empty($horarios_nuevos)) {
+            $conflicto = $this->validarHorarioProfesor($profesor_id, $horarios_nuevos);
+            
+            if ($conflicto) {
+                return Redirect::back()
+                    ->with('error', "¡Empalme de horario para el profesor! Ya tiene una clase el {$conflicto['dia_semana']} de {$conflicto['hora_inicio']} a {$conflicto['hora_fin']}.")
+                    ->withInput(); // withInput() para que el formulario no se borre
+            }
+        }
+        // --- FIN DE LA VALIDACIÓN ---
+
+        // 3. Creamos el Grupo primero
         $grupo = Grupo::create([
             'nombre' => $datosValidados['nombre'],
             'materia_id' => $datosValidados['materia_id'],
             'profesor_id' => $datosValidados['profesor_id'],
         ]);
 
-        // 5. Guardamos los horarios asociados (si se enviaron)
+        // 4. Guardamos los horarios asociados (si se enviaron)
         if ($request->has('horarios')) {
             foreach ($datosValidados['horarios'] as $horarioData) {
                 // Creamos el horario y lo asociamos al grupo
@@ -86,6 +106,10 @@ class GrupoController extends Controller
      */
     public function show(Grupo $grupo): View
     {
+        // ==========================================================
+        // CAMBIO: Cargar relaciones para la vista
+        // ==========================================================
+        $grupo->load('materia', 'profesor', 'horarios');
         return view('grupo.show', compact('grupo'));
     }
 
@@ -108,12 +132,30 @@ class GrupoController extends Controller
     }
 
     /**
-     * Actualiza un grupo Y SUS HORARIOS.
+     * Actualiza un grupo Y SUS HORARIOS (CON VALIDACIÓN DE PROFESOR).
      */
     public function update(GrupoRequest $request, Grupo $grupo): RedirectResponse
     {
-        // 7. Obtenemos los datos validados
+        // 1. Obtenemos los datos validados
         $datosValidados = $request->validated();
+
+        $profesor_id = $datosValidados['profesor_id'];
+        $horarios_nuevos = $datosValidados['horarios'] ?? [];
+
+        // ==========================================================
+        // 2. NUEVA VALIDACIÓN DE EMPALME (excluyendo este mismo grupo)
+        // ==========================================================
+        if ($profesor_id && !empty($horarios_nuevos)) {
+            // Pasamos el ID del grupo actual para excluirlo de la comprobación
+            $conflicto = $this->validarHorarioProfesor($profesor_id, $horarios_nuevos, $grupo->id);
+            
+            if ($conflicto) {
+                return Redirect::back()
+                    ->with('error', "¡Empalme de horario para el profesor! Ya tiene una clase el {$conflicto['dia_semana']} de {$conflicto['hora_inicio']} a {$conflicto['hora_fin']}.")
+                    ->withInput();
+            }
+        }
+        // --- FIN DE LA VALIDACIÓN ---
 
         // 8. Actualizamos los datos principales del grupo
         $grupo->update([
@@ -146,4 +188,58 @@ class GrupoController extends Controller
         return Redirect::route('grupos.index')
             ->with('success', 'Grupo eliminado exitosamente.');
     }
+
+    /**
+     * ==================================================================
+     * FUNCIÓN HELPER PRIVADA PARA VALIDAR HORARIOS DE PROFESOR
+     * ==================================================================
+     */
+    private function validarHorarioProfesor($profesor_id, $horarios_nuevos, $excluir_grupo_id = null)
+    {
+        // 1. Obtener TODOS los IDs de los OTROS grupos de este profesor
+        $query = Grupo::where('profesor_id', $profesor_id);
+
+        if ($excluir_grupo_id !== null) {
+            $query->where('id', '!=', $excluir_grupo_id);
+        }
+        
+        $grupos_del_profesor = $query->pluck('id');
+
+        if ($grupos_del_profesor->isEmpty()) {
+            return false; // No tiene otros grupos, no puede haber conflicto
+        }
+
+        // 2. Obtener TODOS los horarios existentes de esos OTROS grupos
+        $horarios_existentes = Horario::whereIn('grupo_id', $grupos_del_profesor)->get();
+
+        // 3. Comparar cada horario nuevo con cada horario existente
+        foreach ($horarios_nuevos as $horario_nuevo) {
+            if (!isset($horario_nuevo['dia_semana']) || !isset($horario_nuevo['hora_inicio']) || !isset($horario_nuevo['hora_fin'])) {
+                continue;
+            }
+
+            foreach ($horarios_existentes as $horario_existente) {
+                
+                // A. ¿Mismo día?
+                if ($horario_nuevo['dia_semana'] == $horario_existente->dia_semana) {
+                    
+                    // B. ¿Empalme de hora? (InicioA < FinB) Y (FinA > InicioB)
+                    $empalme = ($horario_nuevo['hora_inicio'] < $horario_existente->hora_fin) &&
+                               ($horario_nuevo['hora_fin'] > $horario_existente->hora_inicio);
+
+                    if ($empalme) {
+                        // ¡Conflicto!
+                        return [
+                            'dia_semana' => ucfirst($horario_existente->dia_semana),
+                            'hora_inicio' => date('H:i', strtotime($horario_existente->hora_inicio)),
+                            'hora_fin' => date('H:i', strtotime($horario_existente->hora_fin)),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return false; // No se encontraron conflictos
+    }
 }
+

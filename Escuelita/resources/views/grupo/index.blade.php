@@ -1,3 +1,8 @@
+@php
+    // Necesitamos Carbon para formatear las horas
+    use Carbon\Carbon;
+@endphp
+
 @extends('layouts.app')
 
 @section('template_title')
@@ -43,6 +48,16 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
+            
+            {{-- ================== AÑADIDO PARA MOSTRAR ERRORES DE EMPALME ================== --}}
+            @if ($message = Session::get('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <p class="mb-0">{{ $message }}</p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+            {{-- ========================================================================= --}}
+
 
             <div class="card shadow-lg border-0">
                 <div class="card-body">
@@ -54,6 +69,9 @@
                                     <th>Grupo</th>
                                     <th>Materia</th>
                                     <th>Profesor Asignado</th>
+                                    {{-- ================== NUEVA COLUMNA ================== --}}
+                                    <th>Horario</th>
+                                    {{-- ================================================= --}}
                                     <th class="text-end">Acciones</th>
                                 </tr>
                             </thead>
@@ -63,7 +81,24 @@
                                         <td>{{ ++$i }}</td>
                                         <td>{{ $grupo->nombre }}</td>
                                         <td>{{ $grupo->materia->nombre ?? 'N/A' }}</td>
-                                        <td>{{ $grupo->profesor->nombre ?? 'N/A' }} {{ $grupo->profesor->apellido_paterno ?? '' }}</td>
+                                        <td>{{ $grupo->profesor->nombre ?? 'N/A' }} {{ $grupo->profesor->apellido_paterno ?? '' }} {{ $grupo->profesor->apellido_materno ?? '' }}</td>
+                                        
+                                        {{-- ================== NUEVA CELDA ================== --}}
+                                        <td style="min-width: 190px; font-size: 0.9em;">
+                                            @forelse ($grupo->horarios as $horario)
+                                                <span class="d-block" style="text-transform: capitalize;">
+                                                    <i class="fas fa-calendar-day me-1 text-muted"></i>
+                                                    {{ $horario->dia_semana }}: 
+                                                    <i class="fas fa-clock me-1 text-muted"></i>
+                                                    {{ Carbon::parse($horario->hora_inicio)->format('H:i') }} - 
+                                                    {{ Carbon::parse($horario->hora_fin)->format('H:i') }}
+                                                </span>
+                                            @empty
+                                                <span class="text-muted">Sin horario</span>
+                                            @endforelse
+                                        </td>
+                                        {{-- =============================================== --}}
+
                                         <td class="text-end">
                                             <form action="{{ route('grupos.destroy', $grupo->id) }}" method="POST">
                                                 <a class="btn btn-sm btn-icon btn-info" href="{{ route('grupos.show', $grupo->id) }}" data-bs-toggle="tooltip" title="Mostrar">
@@ -83,7 +118,8 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center py-5">
+                                        {{-- Colspan aumentado a 6 --}}
+                                        <td colspan="6" class="text-center py-5">
                                             <i class="fas fa-exclamation-circle fa-4x text-muted mb-3"></i>
                                             <h4 class="text-muted">No hay grupos registrados todavía.</h4>
                                         </td>

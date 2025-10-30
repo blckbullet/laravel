@@ -3,233 +3,333 @@
 namespace App\Http\Controllers;
 
 use App\Models\Historiale;
-use App\Models\Alumno;   // 1. Importar Alumno
-use App\Models\Materia;  // 2. Importar Materia
+use App\Models\Alumno;
+use App\Models\Materia;
+use App\Models\Grupo;
+use App\Models\Horario;
+use App\Models\Profesore; // Asegúrate que este modelo exista
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Http\Requests\HistorialeRequest;
-use Illuminate\Support\Facades\DB; // 3. Importar DB para concatenar
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
-use App\Models\Grupo;
-use App\Models\Horario;
 
 class HistorialeController extends Controller
 {
+    /**
+     * Muestra la lista de historiales.
+     */
     public function index(Request $request): View
     {
         $search = $request->input('search');
 
-        $historiales = Historiale::with('alumno', 'materia')
-            ->when($search, function ($query, $search) {
-                return $query->whereHas('alumno', function ($q) use ($search) {
-                                 $q->where('matricula', 'like', "%{$search}%")
-                                   ->orWhereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
-                             })
-                             ->orWhereHas('materia', function ($q) use ($search) {
-                                 $q->where('nombre', 'like', "%{$search}%");
-                             });
+        $historiales = Historiale::with([
+            'alumno', 
+            'materia', 
+            // Carga anidada: grupo, sus horarios, y el profesor del grupo
+            'grupo.horarios', 
+            'grupo.profesor'
+        ])
+        ->when($search, function ($query, $search) {
+            return $query->whereHas('alumno', function ($q) use ($search) {
+                $q->where('matricula', 'like', "%{$search}%")
+                  ->orWhereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
             })
-            ->paginate();
+            ->orWhereHas('materia', function ($q) use ($search) {
+                $q->where('nombre', 'like', "%{$search}%");
+            })
+            ->orWhereHas('grupo.profesor', function ($q) use ($search) {
+                 $q->whereRaw("CONCAT(nombre, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+            });
+        })
+        ->paginate();
 
         return view('historiale.index', compact('historiales'))
             ->with('i', ($request->input('page', 1) - 1) * $historiales->perPage());
     }
 
+    /**
+     * Muestra el formulario para crear un nuevo registro.
+     */
     public function create(): View
-{
-    $historiale = new Historiale();
-    
-    $alumnos = Alumno::where('esta_activo', true) // Asumiendo que implementaste esto
-        ->select('matricula', DB::raw("CONCAT(nombre, ' ', apellido_paterno) AS nombre_completo"))
-        ->pluck('nombre_completo', 'matricula');
+    {
+        $historiale = new Historiale();
         
-    // REEMPLAZAMOS $materias POR $grupos
-    $grupos = Grupo::with('materia') // Cargamos la materia relacionada
-        ->get()
-        ->mapWithKeys(function ($grupo) {
-            $nombreMateria = $grupo->materia->nombre ?? 'Sin Materia';
-            $key = $grupo->id;
-            // El texto del dropdown será: "Cálculo Diferencial - Gpo: 101A"
-            $value = $nombreMateria . ' - Gpo: ' . $grupo->nombre; 
-            return [$key => $value];
-        });
+        // ==========================================================
+        // CAMBIO: Filtramos alumnos que NO estén activos O SEAN EGRESADOS
+        // ==========================================================
+        $alumnos = Alumno::where('esta_activo', true)
+            ->where('es_egresado', false) // <-- NUEVA CONDICIÓN
+            ->select('matricula', DB::raw("CONCAT(nombre, ' ', apellido_paterno) AS nombre_completo"))
+            ->pluck('nombre_completo', 'matricula');
+            
+        $grupos = Grupo::with('materia')
+            ->get()
+            ->mapWithKeys(function ($grupo) {
+                $nombreMateria = $grupo->materia->nombre ?? 'Sin Materia';
+                $key = $grupo->id;
+                $value = $nombreMateria . ' - Gpo: ' . $grupo->nombre; 
+                return [$key => $value];
+            });
 
-    // Pasamos 'grupos' a la vista en lugar de 'materias'
-    return view('historiale.create', compact('historiale', 'alumnos', 'grupos'));
-}
-
-    public function store(HistorialeRequest $request): RedirectResponse
-{
-    // 1. Obtenemos datos validados
-    $datosValidados = $request->validated();
-    $matricula = $datosValidados['alumno_matricula'];
-    $grupoNuevoId = $datosValidados['grupo_id'];
-    $semestreActual = $datosValidados['semestre'];
-    $añoActual = $datosValidados['año'];
-
-    // 2. Obtenemos la materia_id (la necesitamos para la lógica de Repite)
-    $grupoNuevo = Grupo::with('materia')->find($grupoNuevoId);
-    $materiaId = $grupoNuevo->materia_id;
-    $datosValidados['materia_id'] = $materiaId; // Importante para el create()
-
-    // 3. Verificamos si el alumno está activo
-    $alumno = Alumno::find($matricula);
-    if (!$alumno || !$alumno->esta_activo) {
-        return Redirect::back()->with('error', 'Este alumno está dado de baja.')->withInput();
+        return view('historiale.create', compact('historiale', 'alumnos', 'grupos'));
     }
 
-    // --- INICIO: VERIFICACIÓN DE EMPALME DE HORARIO ---
+    /**
+     * Guarda el nuevo registro de historial.
+     */
+    public function store(HistorialeRequest $request): RedirectResponse
+    {
+        $datosValidados = $request->validated();
+        $matricula = $datosValidados['alumno_matricula'];
 
-    // 4. Obtener los horarios del NUEVO grupo que se quiere inscribir
-    $horariosNuevos = Horario::where('grupo_id', $grupoNuevoId)->get();
-
-    // 5. Obtener TODAS las OTRAS inscripciones activas (en curso) del alumno 
-    //    en el MISMO periodo (semestre y año).
-    $otrasInscripciones = Historiale::where('alumno_matricula', $matricula)
-        ->where('semestre', $semestreActual)
-        ->where('año', $añoActual)
-        ->whereNull('calificacion') // <-- Clave: solo materias en curso
-        ->where('grupo_id', '!=', $grupoNuevoId) // Excluirse a sí mismo
-        ->pluck('grupo_id'); 
-
-    if ($otrasInscripciones->isNotEmpty()) {
+        // --- REGLA: NO INSCRIBIR A ALUMNOS DE BAJA O EGRESADOS ---
+        $alumno = Alumno::find($matricula);
         
-        // 6. Obtener TODOS los horarios de esas OTRAS inscripciones
-        $horariosExistentes = Horario::whereIn('grupo_id', $otrasInscripciones)->get();
+        if (!$alumno || !$alumno->esta_activo) {
+            return Redirect::back()
+                ->with('error', 'Este alumno está dado de baja y no se le pueden añadir inscripciones.')
+                ->withInput();
+        }
+        
+        // ==========================================================
+        // NUEVA REGLA: Bloquear si es egresado
+        // ==========================================================
+        if ($alumno->es_egresado) {
+            return Redirect::back()
+                ->with('error', 'Este alumno es egresado y no se le pueden añadir nuevas materias.')
+                ->withInput();
+        }
+        // --- FIN REGLAS ---
+        
+        $grupoNuevoId = $datosValidados['grupo_id'];
+        $semestreActual = $datosValidados['semestre'];
+        $añoActual = $datosValidados['año'];
 
-        // 7. Comparar CADA horario nuevo con CADA horario existente
-        foreach ($horariosNuevos as $horarioNuevo) {
-            foreach ($horariosExistentes as $horarioExistente) {
-                
-                // A. ¿Coinciden en el día?
-                if ($horarioNuevo->dia_semana == $horarioExistente->dia_semana) {
-                    
-                    // B. ¿Hay empalme de hora?
-                    // Un empalme existe si (InicioA < FinB) Y (FinA > InicioB)
-                    $empalme = ($horarioNuevo->hora_inicio < $horarioExistente->hora_fin) &&
-                               ($horarioNuevo->hora_fin > $horarioExistente->hora_inicio);
-                    
-                    if ($empalme) {
-                        // 8. ¡EMPALME! Rechazamos la inscripción
-                        $grupoConflicto = Grupo::with('materia')->find($horarioExistente->grupo_id);
-                        $materiaConflicto = $grupoConflicto->materia->nombre ?? 'N/A';
+        $grupoNuevo = Grupo::with('materia')->find($grupoNuevoId);
+        $materiaId = $grupoNuevo->materia_id;
+        $datosValidados['materia_id'] = $materiaId; 
+
+        // --- VERIFICACIÓN DE EMPALME DE HORARIO (ALUMNO) ---
+        $horariosNuevos = Horario::where('grupo_id', $grupoNuevoId)->get();
+        $otrasInscripciones = Historiale::where('alumno_matricula', $matricula)
+            ->where('semestre', $semestreActual)
+            ->where('año', $añoActual)
+            ->whereNull('calificacion')
+            ->where('grupo_id', '!=', $grupoNuevoId)
+            ->pluck('grupo_id'); 
+
+        if ($otrasInscripciones->isNotEmpty()) {
+            $horariosExistentes = Horario::whereIn('grupo_id', $otrasInscripciones)->get();
+
+            foreach ($horariosNuevos as $horarioNuevo) {
+                foreach ($horariosExistentes as $horarioExistente) {
+                    if ($horarioNuevo->dia_semana == $horarioExistente->dia_semana) {
+                        $empalme = ($horarioNuevo->hora_inicio < $horarioExistente->hora_fin) &&
+                                   ($horarioNuevo->hora_fin > $horarioExistente->hora_inicio);
                         
-                        return Redirect::back()
-                            ->with('error', "Empalme de horario: La materia '{$grupoNuevo->materia->nombre}' 
-                                            (Día: {$horarioNuevo->dia_semana}, Hora: {$horarioNuevo->hora_inicio}) 
-                                            se empalma con '{$materiaConflicto}' 
-                                            (Día: {$horarioExistente->dia_semana}, Hora: {$horarioExistente->hora_inicio}).")
-                            ->withInput();
+                        if ($empalme) {
+                            $grupoConflicto = Grupo::with('materia')->find($horarioExistente->grupo_id);
+                            $materiaConflicto = $grupoConflicto->materia->nombre ?? 'N/A';
+                            
+                            return Redirect::back()
+                                ->with('error', "Empalme de horario: La materia '{$grupoNuevo->materia->nombre}' se empalma con '{$materiaConflicto}'.")
+                                ->withInput();
+                        }
                     }
                 }
             }
         }
-    }
-    // --- FIN: VERIFICACIÓN DE EMPALME DE HORARIO ---
-    
+        // --- FIN VERIFICACIÓN DE EMPALME ---
+        
+        // --- LÓGICA ORDINARIO/REPITE/ESPECIAL ---
+        $calificacionMinimaAprobatoria = 6.0; 
+        $ultimoIntento = Historiale::where('alumno_matricula', $matricula)
+            ->where('materia_id', $materiaId)
+            ->whereIn('tipo', ['Ordinario', 'Repite', 'Especial']) 
+            ->orderBy('created_at', 'desc')
+            ->first();
 
-    // --- INICIO: LÓGICA ORDINARIO/REPITE/ESPECIAL (Tu lógica anterior) ---
-    
-    $calificacionMinimaAprobatoria = 6.0; 
-    $ultimoIntento = Historiale::where('alumno_matricula', $matricula)
-        ->where('materia_id', $materiaId) // Usamos $materiaId que obtuvimos del grupo
-        ->whereIn('tipo', ['Ordinario', 'Repite', 'Especial']) 
-        ->orderBy('created_at', 'desc')
-        ->first();
+        $nuevoTipo = 'Ordinario'; 
 
-    $nuevoTipo = 'Ordinario'; 
-
-    if ($ultimoIntento) {
-        if ($ultimoIntento->calificacion === null) {
-            return Redirect::back()->with('error', 'El alumno ya está inscrito en esta materia (calificación pendiente).')->withInput();
-        } 
-        elseif ($ultimoIntento->calificacion < $calificacionMinimaAprobatoria) {
-            if ($ultimoIntento->tipo == 'Ordinario') $nuevoTipo = 'Repite';
-            elseif ($ultimoIntento->tipo == 'Repite') $nuevoTipo = 'Especial';
-            elseif ($ultimoIntento->tipo == 'Especial') {
-                return Redirect::back()->with('error', 'El alumno ya ha reprobado esta materia en Especial.')->withInput();
+        if ($ultimoIntento) {
+            if ($ultimoIntento->calificacion === null) {
+                return Redirect::back()->with('error', 'El alumno ya está inscrito en esta materia (calificación pendiente).')->withInput();
+            } 
+            elseif ($ultimoIntento->calificacion < $calificacionMinimaAprobatoria) {
+                if ($ultimoIntento->tipo == 'Ordinario') $nuevoTipo = 'Repite';
+                elseif ($ultimoIntento->tipo == 'Repite') $nuevoTipo = 'Especial';
+                elseif ($ultimoIntento->tipo == 'Especial') {
+                    return Redirect::back()->with('error', 'El alumno ya ha reprobado esta materia en Especial.')->withInput();
+                }
+            } 
+            else { 
+                return Redirect::back()->with('error', 'El alumno ya tiene esta materia aprobada.')->withInput();
             }
-        } 
-        else { 
-            return Redirect::back()->with('error', 'El alumno ya tiene esta materia aprobada.')->withInput();
         }
+        // --- FIN LÓGICA ORDINARIO/REPITE ---
+
+        $datosValidados['tipo'] = $nuevoTipo;
+        $datosValidados['calificacion'] = $datosValidados['calificacion'] ?? null;
+        $calificacionActual = $datosValidados['calificacion'];
+
+        Historiale::create($datosValidados);
+
+        // --- LÓGICA DE BAJA (por reprobar Especial) ---
+        $mensaje = "Inscripción en '{$nuevoTipo}' creada exitosamente.";
+        if ($nuevoTipo == 'Especial' && $calificacionActual !== null && $calificacionActual < $calificacionMinimaAprobatoria) {
+            $alumno->esta_activo = false;
+            $alumno->save();
+            $mensaje .= " ¡ATENCIÓN: El alumno ha sido DADO DE BAJA por reprobar Especial!";
+        }
+        elseif ($calificacionActual === null) {
+            $mensaje .= " Calificación pendiente.";
+        }
+
+        return Redirect::route('historiales.index')->with('success', $mensaje);
     }
-    
-    // --- FIN: LÓGICA ORDINARIO/REPITE/ESPECIAL ---
 
-    // 9. Asignar y Guardar
-    $datosValidados['tipo'] = $nuevoTipo;
-    $datosValidados['calificacion'] = $datosValidados['calificacion'] ?? null;
-    $calificacionActual = $datosValidados['calificacion'];
-
-    Historiale::create($datosValidados);
-
-    // 10. Lógica de Baja (Tu lógica anterior)
-    $mensaje = "Inscripción en '{$nuevoTipo}' creada exitosamente.";
-    if ($nuevoTipo == 'Especial' && $calificacionActual !== null && $calificacionActual < $calificacionMinimaAprobatoria) {
-        $alumno->esta_activo = false;
-        $alumno->save();
-        $mensaje .= " ¡ATENCIÓN: El alumno ha sido DADO DE BAJA por reprobar Especial!";
-    }
-    elseif ($calificacionActual === null) {
-        $mensaje .= " Calificación pendiente.";
-    }
-
-    return Redirect::route('historiales.index')->with('success', $mensaje);
-}
-
-    public function show(Historiale $historiale): View // 6. Usando Route-Model Binding
+    /**
+     * Muestra un registro específico del historial.
+     */
+    public function show(Historiale $historiale): View
     {
+        // Cargar las relaciones necesarias
+        $historiale->load(['alumno', 'materia', 'grupo.profesor', 'grupo.horarios']);
         return view('historiale.show', compact('historiale'));
     }
 
-    public function edit(Historiale $historiale): View // 6. Usando Route-Model Binding
+    /**
+     * Muestra el formulario para editar un registro.
+     */
+    public function edit(Historiale $historiale): View
     {
-        // 7. También se necesitan los datos para las listas al editar
-        $alumnos = Alumno::select('matricula', DB::raw("CONCAT(nombre, ' ', apellido_paterno) AS nombre_completo"))
-                         ->pluck('nombre_completo', 'matricula');
-        $materias = Materia::pluck('nombre', 'id');
-        return view('historiale.edit', compact('historiale', 'alumnos', 'materias'));
+        // ==========================================================
+        // CAMBIO: Filtramos alumnos que NO estén activos O SEAN EGRESADOS
+        // Incluimos al alumno actual en la lista, por si acaso es egresado pero
+        // solo queremos editar su registro, no crear uno nuevo.
+        // ==========================================================
+        $alumnos = Alumno::where(function($query) use ($historiale) {
+                $query->where('esta_activo', true)
+                      ->where('es_egresado', false)
+                      ->orWhere('matricula', $historiale->alumno_matricula); // Incluir al alumno actual
+            })
+            ->select('matricula', DB::raw("CONCAT(nombre, ' ', apellido_paterno) AS nombre_completo"))
+            ->pluck('nombre_completo', 'matricula');
+            
+        $grupos = Grupo::with('materia')
+            ->get()
+            ->mapWithKeys(function ($grupo) {
+                $nombreMateria = $grupo->materia->nombre ?? 'Sin Materia';
+                $key = $grupo->id;
+                $value = $nombreMateria . ' - Gpo: ' . $grupo->nombre; 
+                return [$key => $value];
+            });
+
+        return view('historiale.edit', compact('historiale', 'alumnos', 'grupos'));
     }
 
+    /**
+     * Actualiza un registro de historial.
+     */
     public function update(HistorialeRequest $request, Historiale $historiale): RedirectResponse
-{
-    $datosValidados = $request->validated();
-    
-    // 1. Actualizamos el registro del historial
-    $historiale->update($datosValidados);
-    $historiale->refresh(); // Recargamos el modelo con los datos guardados
-
-    // --- INICIO LÓGICA DE BAJA (REGLA 1) ---
-    
-    $calificacion = $historiale->calificacion;
-    $tipo = $historiale->tipo;
-    $calificacionMinimaAprobatoria = 6.0;
-
-    // 2. Comprobamos si es 'Especial' y está reprobado
-    if ($tipo == 'Especial' && $calificacion !== null && $calificacion < $calificacionMinimaAprobatoria) 
     {
-        // 3. Damos de baja al alumno
-        $alumno = $historiale->alumno; // Obtenemos el alumno de la relación
-        $alumno->esta_activo = false;
-        $alumno->save();
+        $datosValidados = $request->validated();
         
-        // 4. Redirigimos con un mensaje especial
+        // (Lógica de validación de egresado/empalme podría ir aquí también si permites cambiar alumno/grupo)
+        
+        $historiale->update($datosValidados);
+        $historiale->refresh(); 
+
+        $calificacion = $historiale->calificacion;
+        $tipo = $historiale->tipo;
+        $calificacionMinimaAprobatoria = 6.0;
+
+        // --- LÓGICA DE BAJA (por reprobar Especial) ---
+        if ($tipo == 'Especial' && $calificacion !== null && $calificacion < $calificacionMinimaAprobatoria) 
+        {
+            $alumno = $historiale->alumno;
+            $alumno->esta_activo = false;
+            $alumno->save();
+            
+            return Redirect::route('historiales.index')
+                ->with('success', 'Calificación de Especial actualizada. ¡ALUMNO DADO DE BAJA por reprobar!');
+        }
+        
         return Redirect::route('historiales.index')
-            ->with('success', 'Calificación de Especial actualizada. ¡ALUMNO DADO DE BAJA por reprobar!');
+            ->with('success', 'Registro de historial actualizado exitosamente.');
     }
-    
-    // --- FIN LÓGICA DE BAJA ---
 
-    return Redirect::route('historiales.index')
-        ->with('success', 'Registro de historial actualizado exitosamente.');
-}
-
-    public function destroy(Historiale $historiale): RedirectResponse // 6. Usando Route-Model Binding
+    /**
+     * Elimina un registro de historial.
+     */
+    public function destroy(Historiale $historiale): RedirectResponse
     {
         $historiale->delete();
         return Redirect::route('historiales.index')
             ->with('success', 'Registro de historial eliminado exitosamente.');
     }
+    
+    /**
+     * API: Devuelve grupos disponibles para AJAX (Opcional).
+     */
+    public function getGruposDisponibles(Request $request)
+    {
+        $datos = $request->validate([
+            'matricula' => 'required|string|exists:alumnos,matricula',
+            'semestre' => 'required|integer',
+            'año' => 'required|integer',
+        ]);
+
+        $matricula = $datos['matricula'];
+        $semestre = $datos['semestre'];
+        $año = $datos['año'];
+
+        // Verificar si el alumno está egresado o inactivo
+        $alumno = Alumno::find($matricula);
+        if (!$alumno || !$alumno->esta_activo || $alumno->es_egresado) {
+            return response()->json(['error' => 'Alumno no válido para inscripción'], 403);
+        }
+
+        $inscripcionesExistentes = Historiale::where('alumno_matricula', $matricula)
+            ->where('semestre', $semestre)
+            ->where('año', $año)
+            ->whereNull('calificacion')
+            ->pluck('grupo_id');
+
+        $horariosOcupados = Horario::whereIn('grupo_id', $inscripcionesExistentes)->get();
+
+        $todosLosGrupos = Grupo::with(['materia', 'horarios'])->get();
+        $gruposDisponibles = [];
+
+        foreach ($todosLosGrupos as $grupo) {
+            $tieneConflicto = false;
+            
+            if ($grupo->horarios->isEmpty()) continue;
+
+            foreach ($grupo->horarios as $horarioNuevo) {
+                foreach ($horariosOcupados as $horarioOcupado) {
+                    if ($horarioNuevo->dia_semana == $horarioOcupado->dia_semana) {
+                        $empalme = ($horarioNuevo->hora_inicio < $horarioOcupado->hora_fin) &&
+                                   ($horarioNuevo->hora_fin > $horarioOcupado->hora_inicio);
+                        if ($empalme) {
+                            $tieneConflicto = true;
+                            break; 
+                        }
+                    }
+                }
+                if ($tieneConflicto) break;
+            }
+
+            if (!$tieneConflicto) {
+                $gruposDisponibles[] = [
+                    'id' => $grupo->id,
+                    'nombre_completo' => ($grupo->materia->nombre ?? 'N/A') . ' - Gpo: ' . $grupo->nombre
+                ];
+            }
+        }
+        return response()->json($gruposDisponibles);
+    }
 }
+
